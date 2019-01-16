@@ -5,26 +5,36 @@ const (
 	NotesInMode = 7
 )
 
+// Pattern A type wrapping a slice of integers that represent half step intervals.
 type Pattern struct {
 	intervals []HalfSteps
 }
 
+// MakePattern Create a new pattern using the given intervals. If no intervals are given then nil is returned.
 func MakePattern(intervals ...HalfSteps) *Pattern {
+	if len(intervals) < 1 {
+		return nil
+	}
 	return &Pattern{intervals}
 }
 
+// Intervals Get a slice referencing a copy of the sequence of half step intervals that make up this pattern.
 func (p Pattern) Intervals() []HalfSteps {
 	return p.Copy().intervals
 }
 
+// At Return the size of the interval at the given index into the pattern. The index must be zero or higher, and
+// if it is the length of the pattern or higher it will be looped around to the beginning.
 func (p *Pattern) At(index int) HalfSteps {
 	return p.intervals[index%len(p.intervals)]
 }
 
+// Length Obtain the number of intervals in this pattern.
 func (p *Pattern) Length() int {
 	return len(p.intervals)
 }
 
+// Copy Obtain an identical copy of this pattern
 func (p Pattern) Copy() *Pattern {
 	c := make([]HalfSteps, len(p.intervals), len(p.intervals))
 	copy(c, p.intervals)
@@ -293,13 +303,19 @@ type PatternDictionary struct {
 // GetName If this dictionary contains the given pattern, then its name will be returned. The bool will be false if the pattern is
 // not in the dictionary.
 func (d *PatternDictionary) GetName(pattern *Pattern) (string, bool) {
-	value := d.searchTree.FindValue(pattern.intervals)
-	s, ok := value.(string)
-	return s, ok
+	values := d.searchTree.FindValue(pattern.intervals)
+	for _, v := range values {
+		s, ok := v.(string)
+		if ok {
+			return s, true
+		}
+	}
+	return "", false
 }
 
-// GetEntry If this dictionary contains the given pattern, then its entry will be returned, otherwise nil.
-func (d *PatternDictionary) GetEntry(pattern *Pattern) interface{} {
+// GetEntries If this dictionary contains the given pattern, then all its entries will be returned. If the pattern is not in the trie then
+// an empty slice is returned.
+func (d *PatternDictionary) GetEntries(pattern *Pattern) []interface{} {
 	value := d.searchTree.FindValue(pattern.intervals)
 	return value
 }
@@ -311,7 +327,7 @@ func (d *PatternDictionary) AddPattern(pattern *Pattern, entry interface{}) {
 
 // BuildModeDictionary Builds a dictionary containing the seven modes.
 func BuildModeDictionary() *PatternDictionary {
-	dict := &PatternDictionary{NewTrie(3)}
+	dict := &PatternDictionary{NewTrie(1, 2)}
 	dict.AddPattern(CreateIonianMode(), "Ionian")
 	dict.AddPattern(CreateDorianMode(), "Dorian")
 	dict.AddPattern(CreatePhrygianMode(), "Phrygian")
@@ -324,7 +340,7 @@ func BuildModeDictionary() *PatternDictionary {
 
 // BuildScaleDictionary Builds a dictionary containing the standard scales.
 func BuildScaleDictionary() *PatternDictionary {
-	dict := &PatternDictionary{NewTrie(4)}
+	dict := &PatternDictionary{NewTrie(1, 3)}
 	dict.AddPattern(CreateMajorScale(), "Major")
 	dict.AddPattern(CreateMinorScale(), "Minor")
 	dict.AddPattern(CreateHarmonicMinorScalePattern(), "Harmonic Minor")

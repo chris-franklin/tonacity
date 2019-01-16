@@ -4,26 +4,28 @@ import (
 	"testing"
 )
 
-func TestChordFactory_GetPitchClass(t *testing.T) {
+func TestChordFactory_GetPitch(t *testing.T) {
 	type args struct {
-		interval uint8
+		interval Interval
 	}
+	pf := &PitchFactory{*MiddleC()}
+	scale := CreateMajorScale()
 	tests := []struct {
 		name string
 		f    *ChordFactory
 		args args
-		want *PitchClass
+		want *Pitch
 	}{
-		{"C Major - C Major Third", &ChordFactory{*CreateMajorScale(), *C(), 0}, args{3}, E()},
-		{"C Major - C Major Fifth", &ChordFactory{*CreateMajorScale(), *C(), 0}, args{5}, G()},
-		{"C Major - E Minor Third", &ChordFactory{*CreateMajorScale(), *C(), 2}, args{3}, G()},
-		{"A Major - E Major Third", &ChordFactory{*CreateMajorScale(), *A(), 4}, args{3}, G().Sharp()},
-		{"A Major - E Major Fifth", &ChordFactory{*CreateMajorScale(), *A(), 4}, args{5}, B()},
-		{"A Major - E Major Seventh", &ChordFactory{*CreateMajorScale(), *A(), 4}, args{7}, D()},
+		{"C Major - C Major Third", &ChordFactory{*scale, pf.GetPitch(C(), 4), 0}, args{Third}, pf.GetPitch(E(), 4)},
+		{"C Major - C Major Fifth", &ChordFactory{*scale, pf.GetPitch(C(), 4), 0}, args{Fifth}, pf.GetPitch(G(), 4)},
+		{"C Major - E Minor Third", &ChordFactory{*scale, pf.GetPitch(C(), 4), 2}, args{Third}, pf.GetPitch(G(), 4)},
+		{"A Major - E Major Third", &ChordFactory{*scale, pf.GetPitch(A(), 4), 4}, args{Third}, pf.GetPitch(G().Sharp(), 5)},
+		{"A Major - E Major Fifth", &ChordFactory{*scale, pf.GetPitch(A(), 4), 4}, args{Fifth}, pf.GetPitch(B(), 5)},
+		{"A Major - E Major Seventh", &ChordFactory{*scale, pf.GetPitch(A(), 4), 4}, args{Seventh}, pf.GetPitch(D(), 6)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.f.GetPitchClass(tt.args.interval); !got.HasSamePitchAs(tt.want) {
+			if got := tt.f.GetPitch(tt.args.interval); got.GetDistanceTo(tt.want) != 0 {
 				t.Errorf("ChordFactory.GetPitchClass() = %v, want %v", got, tt.want)
 			}
 		})
@@ -44,11 +46,14 @@ func TestGetChordName(t *testing.T) {
 		wantName string
 		wantOk   bool
 	}{
+		{`Power "Chord"`, args{dict, namer, []PitchClass{*C(), *G()}}, "C5", true},
 		{"G Dom7", args{dict, namer, []PitchClass{*G(), *B(), *D(), *F()}}, "G Dominant Seventh", true},
 		{"G Maj", args{dict, namer, []PitchClass{*G(), *B(), *D(), *F().Sharp()}}, "G Major Seventh", true},
 		{"C Major", args{dict, namer, []PitchClass{*C(), *E(), *G()}}, "C Major", true},
 		{"E/CMaj", args{dict, namer, []PitchClass{*E(), *G(), *C()}}, "C Major", true},
 		{"B Dim", args{dict, namer, []PitchClass{*B(), *D(), *F()}}, "B Diminished", true},
+		{"C♯ Sus", args{dict, namer, []PitchClass{*F().Sharp(), *C().Sharp(), *G().Sharp()}}, "C♯ Suspended", true},
+		{"D Augmented", args{dict, namer, []PitchClass{*D(), *F().Sharp(), *A().Sharp()}}, "D Augmented", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

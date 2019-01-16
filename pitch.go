@@ -1,6 +1,9 @@
 package tonacity
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // StandardConcertPitch The almost-completely agreed-upon pitch of A4
 const StandardConcertPitch = 440
@@ -33,7 +36,8 @@ func (pc *PitchClass) Flat() *PitchClass {
 	return pc.GetTransposedCopy(-HalfStepValue)
 }
 
-// GetDistanceToHigherPitchClass Gets the positive number of half steps to the given pitch class.
+// GetDistanceToHigherPitchClass Gets the positive number of half steps to the given pitch class. Passing in the same pitch class
+// will return an entire octave.
 func (pc *PitchClass) GetDistanceToHigherPitchClass(b PitchClass) HalfSteps {
 	if pc.value == b.value {
 		return OctaveValue
@@ -44,7 +48,8 @@ func (pc *PitchClass) GetDistanceToHigherPitchClass(b PitchClass) HalfSteps {
 	return b.value - pc.value
 }
 
-// GetDistanceToLowerPitchClass Gets the negative number of half steps to the given pitch class.
+// GetDistanceToLowerPitchClass Gets the negative number of half steps to the given pitch class. Passing in the same pitch class
+// will return an entire (negative) octave.
 func (pc *PitchClass) GetDistanceToLowerPitchClass(b PitchClass) HalfSteps {
 	if pc.value == b.value {
 		return -OctaveValue
@@ -120,20 +125,24 @@ type Pitch struct {
 	// Why isn't physical frequency here? Because while the standard is for A4 to be 440Hz, that's not what everyone agrees upon
 }
 
+func (p *Pitch) String() string {
+	return fmt.Sprintf("class %d, value %d", p.class.value, p.value)
+}
+
 // Class The class of the pitch, e.g., C
 func (p *Pitch) Class() PitchClass {
 	return p.class
 }
 
-// GetHalfStepDifference Gets the number of half steps between two pitches. If b is lower then a then the number will be negative.
-func (p *Pitch) GetHalfStepDifference(b *Pitch) HalfSteps {
+// GetDistanceTo Gets the number of half steps to the given pitch. If b is lower then a then the number will be negative.
+func (p *Pitch) GetDistanceTo(b *Pitch) HalfSteps {
 	return b.value - p.value
 }
 
 // Octave The octave of the pitch relative to a (Piano) Middle C (C4). Be careful when using this for presentation, as C♭4 will return 3, as
 // it will be treated as a B. In such situations, first get the octave of the natural tone, then ornament it afterwards.
 func (p *Pitch) Octave(middleC *Pitch) (octave int8) {
-	offsetFromCZero := middleC.GetHalfStepDifference(p) + OctaveValue*4
+	offsetFromCZero := middleC.GetDistanceTo(p) + OctaveValue*4
 	octave = int8(offsetFromCZero / OctaveValue)
 	return
 }
@@ -165,5 +174,24 @@ func (p *Pitch) LowerToNext(pitchClass PitchClass) {
 
 // FrequencyInHertz Returns the physical frequency of the sound produced by the given pitch, using the given frequency as A4.
 func (p *Pitch) FrequencyInHertz(concertPitch float64) float64 {
-	return math.Pow(2, float64(A4().GetHalfStepDifference(p))/12.0) * concertPitch
+	return math.Pow(2, float64(A4().GetDistanceTo(p))/12.0) * concertPitch
+}
+
+// PitchFactory Allows creating pitches relative to C4.
+type PitchFactory struct {
+	c4 Pitch
+}
+
+// GetPitch Get the pitch with the given class in the given octave.
+func (f *PitchFactory) GetPitch(pitchClass *PitchClass, octave int) *Pitch {
+
+	// We're working with C4 being zero, so offset octave
+	octave -= 4
+
+	// octave == 0 => After a pitch in the same octave (4)
+	// octave > 0  => After a pitch in a higher octave (5+)
+	// octave < 0  => After a pitch in a lower octave  (3-)
+
+	interval := (f.c4.class.GetDistanceToHigherPitchClass(*pitchClass) % OctaveValue)
+	return &Pitch{*pitchClass, interval + HalfSteps(octave*OctaveValue)}
 }

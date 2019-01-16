@@ -5,26 +5,40 @@ import (
 	"sort"
 )
 
+// Interval The type to use when specifying an interval in a key.
+type Interval uint8
+
 const (
 
 	// These are intervals in the context of a key, which is made up of seven notes.
 
 	// First For specifying the root tone. Here for completeness, not actually useful.
-	First = 1
-	// Second For specifying the interval of a second.
-	Second = 2
+	First Interval = 1
+	// Second For specifying the interval of a Second.
+	Second Interval = 2
 	// Third For specifying the interval of a Third.
-	Third = 3
+	Third Interval = 3
 	// Fourth For specifying the interval of a Fourth.
-	Fourth = 4
+	Fourth Interval = 4
 	// Fifth For specifying the interval of a Fifth.
-	Fifth = 5
+	Fifth Interval = 5
 	// Sixth For specifying the interval of a Sixth.
-	Sixth = 6
+	Sixth Interval = 6
 	// Seventh For specifying the interval of a Seventh.
-	Seventh = 7
-	// Eighth is equivalent to first
+	Seventh Interval = 7
+	// Ninth For specifying the interval of a Ninth.
+	Ninth Interval = 9
+	// Eleventh For specifying the interval of an Eleventh.
+	Eleventh Interval = 11
+	// Thirteenth For specifying the interval of a Thirteenth.
+	Thirteenth Interval = 13
 
+	// These are the half-step distances from the First
+
+	// MinorSecond The interval of a minor second, in half steps.
+	MinorSecond = HalfStepValue
+	// MajorSecond The interval of a major second, in half steps.
+	MajorSecond = WholeStepValue
 	// MinorThird The interval of a minor third, in half steps.
 	MinorThird = HalfStepValue * 3
 	// MajorThird The interval of a major third, in half steps.
@@ -35,17 +49,23 @@ const (
 	PerfectFifth = HalfStepValue * 7
 )
 
-// ChordFactory The purpose of this class is to allow creating chords using indexes into the scale, without needing to worry
-// about half steps, e.g., specify "third" without having to know if it's a major (2 steps) or minor (three half steps) third.
-type ChordFactory struct {
-	pattern Pattern    // The pattern of the scale, which must be diatonic
-	root    PitchClass // The pitch class to apply the pattern from
-	offset  int        // The offset into the scale of the root
+// Chord A collection of specific pitches, making a chord.
+type Chord struct {
+	pitches []Pitch // The pitches that make up this chord
+	root    int     // The index into the pitch slice that contains the root pitch. Will be non-zero for inverted chords.
 }
 
-// GetPitchClass Get the pitch that is the given interval from this factory's root. The interval should be in the range 1 (a first,
-// which will return the same pitch class) to 7 (a seventh). One is zero? Yes, that's just how music works ¯\_(ツ)_/¯.
-func (f *ChordFactory) GetPitchClass(interval uint8) *PitchClass {
+// ChordFactory The purpose of this class is to allow creating chords using scale intervals, without needing to worry
+// about half steps, e.g., specify "third" without having to know if it's a major (2 steps) or minor (three half steps) third.
+type ChordFactory struct {
+	pattern Pattern // The pattern of the scale, which must be diatonic
+	root    *Pitch  // The pitch to apply the pattern from
+	offset  int     // The offset into the scale of the root
+}
+
+// GetPitch Get the pitch that is the given interval from this factory's root. The interval should be 1 (a first,
+// which will return the same pitch) or higher. One is zero? Yes, that's just how music works ¯\_(ツ)_/¯.
+func (f *ChordFactory) GetPitch(interval Interval) *Pitch {
 	var halfSteps HalfSteps
 	for i := 1; i < int(interval)+f.offset; i++ {
 		halfSteps += f.pattern.At(i - 1)
@@ -53,26 +73,47 @@ func (f *ChordFactory) GetPitchClass(interval uint8) *PitchClass {
 	return f.root.GetTransposedCopy(halfSteps)
 }
 
+// GetIntervalSize Gets the size of the given interval in half steps.
+func (f *ChordFactory) GetIntervalSize(interval Interval) HalfSteps {
+	return f.root.GetDistanceTo(f.GetPitch(interval))
+}
+
+// ContainsInterval Returns true if the pitch at the given interval is the given number of half steps from its root.
+func (f *ChordFactory) ContainsInterval(interval Interval, halfSteps HalfSteps) bool {
+	return f.GetIntervalSize(interval) == halfSteps
+}
+
 // HasMajorThird Returns true if this factory's third is a major third, false if it is a minor third.
 func (f *ChordFactory) HasMajorThird() bool {
-	return f.root.GetDistanceToHigherPitchClass(*f.GetPitchClass(Third)) == MajorThird
+	return f.ContainsInterval(Third, MajorThird)
 }
 
 // HasPerfectFourth Returns true if this factory's fourth is a perfect fourth, false if it is a minor third.
 func (f *ChordFactory) HasPerfectFourth() bool {
-	return f.root.GetDistanceToHigherPitchClass(*f.GetPitchClass(Fourth)) == PerfectFourth
+	return f.ContainsInterval(Fourth, PerfectFourth)
 }
 
 // HasPerfectFifth Returns true if this factory's fifth is a perfect fifth, false if it is a minor third.
 func (f *ChordFactory) HasPerfectFifth() bool {
-	return f.root.GetDistanceToHigherPitchClass(*f.GetPitchClass(Fifth)) == PerfectFifth
+	return f.ContainsInterval(Fifth, PerfectFifth)
 }
 
-// Given a set of three or more pitch classes, how do we determine what the chord is?
+// CreateChord Create a chord using the specified intervals.
+func (f *ChordFactory) CreateChord(intervals ...Interval) *Chord {
+	pitches := make([]Pitch, len(intervals), len(intervals))
+	for i, v := range intervals {
+		pitches[i] = *f.GetPitch(v)
+	}
+	return &Chord{pitches, 0}
+}
+
+// Given a set of two or more pitch classes, how do we determine what the chord is?
 // Does the key matter? Only in determining the Roman Numeral to use.
 // Only the pattern of half step intervals matters.
-// For each (type of) chord we know, we can iterate through all its inversions, adding them to a trie. The only remaining challenge
-// is that to name the chord we need to know which position is the root.
+// For each (type of) chord we know, we can iterate through all its inversions, adding them to a trie.
+
+// TODO: It turns out some chords are ambiguous, and the right name to use depends on the lowest pitch so we need to
+// provide an algorithm that uses pitches rather than classes.
 
 func createTriadPattern(third1 HalfSteps, third2 HalfSteps) *Pattern {
 	// Necessary to make a pattern that spans exactly an octave, as the third interval is required for chord inversions
@@ -82,6 +123,11 @@ func createTriadPattern(third1 HalfSteps, third2 HalfSteps) *Pattern {
 func createTetrachordPattern(third1 HalfSteps, third2 HalfSteps, third3 HalfSteps) *Pattern {
 	// Necessary to make a pattern that spans exactly an octave, as the third interval is required for chord inversions
 	return MakePattern(third1, third2, third3, OctaveValue-(third1+third2+third3))
+}
+
+// CreatePowerChordPattern Creates the pattern for a "power chord", consisting of the root and the fifth.
+func CreatePowerChordPattern() *Pattern {
+	return MakePattern(PerfectFifth, PerfectFourth)
 }
 
 // CreateMajorTriadPattern Creates the pattern for a Major Triad. Three of these exist in a key (I, IV, V, iii, vi, vii)
@@ -97,6 +143,17 @@ func CreateMinorTriadPattern() *Pattern {
 // CreateDiminishedTriadPattern Creates the pattern for a diminished triad. Only one of these exists in a key (VII in major, ii in minor).
 func CreateDiminishedTriadPattern() *Pattern {
 	return createTriadPattern(MinorThird, MinorThird)
+}
+
+// CreateAugmentedTriadPattern Creates the pattern for an augmented triad.
+func CreateAugmentedTriadPattern() *Pattern {
+	return createTriadPattern(MajorThird, MajorThird)
+}
+
+// CreateSuspendedPattern Creates the pattern for a suspended second triad, where the third is omitted, and a fourth/second is added.
+// Important: A suspended second is equivalent to a suspended fourth with the fifth as the root.
+func CreateSuspendedPattern() *Pattern {
+	return createTriadPattern(PerfectFourth, MajorSecond)
 }
 
 // CreateMajorSeventhPattern Creates the pattern for a Major Seventh Chord.
@@ -132,25 +189,35 @@ func addChordToDict(dict *PatternDictionary, chord *Pattern, name string) {
 
 // CreateChordDictionary Creates a new dictionary for the purpose of naming chords based on the half step intervals between pitches.
 func CreateChordDictionary() (dict *PatternDictionary) {
-	dict = &PatternDictionary{NewTrie(12)}
+	dict = &PatternDictionary{NewTrie(1, OctaveValue)}
 
-	addChordToDict(dict, CreateMajorTriadPattern(), "Major")
-	addChordToDict(dict, CreateMinorTriadPattern(), "Minor")
-	addChordToDict(dict, CreateDiminishedTriadPattern(), "Diminished")
+	addChordToDict(dict, CreatePowerChordPattern(), "5")
 
-	addChordToDict(dict, CreateMajorSeventhPattern(), "Major Seventh")
-	addChordToDict(dict, CreateDominantSeventhPattern(), "Dominant Seventh")
-	addChordToDict(dict, CreateMinorSeventhPattern(), "Minor Seventh")
-	addChordToDict(dict, CreateDiminishedSeventhPattern(), "Diminished Seventh")
+	addChordToDict(dict, CreateMajorTriadPattern(), " Major")           // 4, 3
+	addChordToDict(dict, CreateMinorTriadPattern(), " Minor")           // 3, 4
+	addChordToDict(dict, CreateDiminishedTriadPattern(), " Diminished") // 3, 3
+	addChordToDict(dict, CreateAugmentedTriadPattern(), " Augmented")   // 4, 4
+
+	addChordToDict(dict, CreateSuspendedPattern(), " Suspended")
+
+	addChordToDict(dict, CreateMajorSeventhPattern(), " Major Seventh")
+	addChordToDict(dict, CreateDominantSeventhPattern(), " Dominant Seventh")
+	addChordToDict(dict, CreateMinorSeventhPattern(), " Minor Seventh")
+	addChordToDict(dict, CreateDiminishedSeventhPattern(), " Diminished Seventh")
 
 	return
 }
 
+// GetChordName Given a set of unique pitch classes, returns the name of the produced chord. If the chord doesn't contain a name in
+// the given dictionary, then ("", false) is returned.
+// As this function takes pitch classes, it cannot determine extended chord names, as the pitches would loop back around (11th -> 4th).
 func GetChordName(dict *PatternDictionary, pitchNamer *PitchNamer, chord []PitchClass) (name string, ok bool) {
 
 	// Assumption: only unique pitch classes are in chord
 
-	if len(chord) <= 2 {
+	if len(chord) < 2 {
+		// I've made the executive decision to allow power chords, even though, featuring only two pitches, they
+		// aren't technically chords
 		ok = false
 		return
 	}
@@ -176,15 +243,21 @@ func GetChordName(dict *PatternDictionary, pitchNamer *PitchNamer, chord []Pitch
 		pattern = append(pattern, interval)
 	}
 
-	e := dict.GetEntry(&Pattern{pattern})
-	entry, ok := e.(*chordDictionaryEntry)
-	if !ok {
-		return
+	// 3. Look up the pattern in the dictionary
+
+	// For now we're just taking the first name; at some point, getting all the possible names will need to be an option.
+
+	entries := dict.GetEntries(&Pattern{pattern})
+	for _, entry := range entries {
+		e, ok := entry.(*chordDictionaryEntry)
+		if ok {
+			root := pitchNamer.Name(PitchClass{HalfSteps(pitchIndices[e.rootIndex])})
+			name = fmt.Sprintf("%s%s", root, e.name)
+			return name, true
+		}
 	}
 
-	root := pitchNamer.Name(PitchClass{HalfSteps(pitchIndices[entry.rootIndex])})
-	name = fmt.Sprintf("%s %s", root, entry.name)
-	ok = true
+	ok = false
 
 	return
 }
