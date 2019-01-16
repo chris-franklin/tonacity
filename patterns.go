@@ -31,13 +31,17 @@ func (p Pattern) Copy() *Pattern {
 	return &Pattern{c}
 }
 
+// Offset Returns a copy of this pattern offset so it starts at the interval at the given offset
 func (p Pattern) Offset(o int) *Pattern {
 	l := len(p.intervals)
-	reverse := make([]HalfSteps, l, l)
-	for i := 0; i < l; i++ {
-		reverse[i] = p.intervals[(i+o)%l]
+	if o < 0 {
+		o = l + o
 	}
-	return &Pattern{reverse}
+	offsetPattern := make([]HalfSteps, l, l)
+	for i := 0; i < l; i++ {
+		offsetPattern[i] = p.intervals[(i+o)%l]
+	}
+	return &Pattern{offsetPattern}
 }
 
 // Reverse Reverses this pattern so that it produces the reverse of the pattern passed in.
@@ -82,13 +86,13 @@ func (p *Pattern) PatternRepeatsAtOctave() bool {
 }
 
 // CreateAscendingSinger Creates a singer that applies this pattern from the given pitch.
-func (pattern Pattern) CreateAscendingSinger(pitch Pitch) Singer {
-	return PatternRepeatingSinger{pattern, pitch, 0}
+func (p Pattern) CreateAscendingSinger(pitch Pitch) Singer {
+	return PatternRepeatingSinger{p, pitch, 0}
 }
 
 // CreateDescendingSinger Creates a singer that applies this pattern in reverse from the given pitch.
-func (pattern Pattern) CreateDescendingSinger(pitch Pitch) Singer {
-	return PatternRepeatingSinger{*pattern.Reverse(), pitch, 0}
+func (p Pattern) CreateDescendingSinger(pitch Pitch) Singer {
+	return PatternRepeatingSinger{*p.Reverse(), pitch, 0}
 }
 
 // ionianModePattern The pattern of the Ionian (I) Mode, repeated twice to allow slicing it to create on of the other modes.
@@ -286,16 +290,23 @@ type PatternDictionary struct {
 	searchTree *TrieNode
 }
 
-// GetName If this dictionary contains the given pattern, then its name will be returned, otherwise nil.
+// GetName If this dictionary contains the given pattern, then its name will be returned. The bool will be false if the pattern is
+// not in the dictionary.
 func (d *PatternDictionary) GetName(pattern *Pattern) (string, bool) {
 	value := d.searchTree.FindValue(pattern.intervals)
 	s, ok := value.(string)
 	return s, ok
 }
 
+// GetEntry If this dictionary contains the given pattern, then its entry will be returned, otherwise nil.
+func (d *PatternDictionary) GetEntry(pattern *Pattern) interface{} {
+	value := d.searchTree.FindValue(pattern.intervals)
+	return value
+}
+
 // AddPattern Add a pattern to the dictionary.
-func (d *PatternDictionary) AddPattern(pattern *Pattern, name string) {
-	d.searchTree.AddValue(pattern.Intervals(), name)
+func (d *PatternDictionary) AddPattern(pattern *Pattern, entry interface{}) {
+	d.searchTree.AddValue(pattern.Intervals(), entry)
 }
 
 // BuildModeDictionary Builds a dictionary containing the seven modes.
