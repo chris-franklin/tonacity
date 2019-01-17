@@ -24,13 +24,13 @@ const (
 	Fifth Interval = 5
 	// Sixth For specifying the interval of a Sixth.
 	Sixth Interval = 6
-	// Seventh For specifying the interval of a Seventh.
+	// Seventh For specifying the interval of a Seventh. Limit on a piano for average female hands.
 	Seventh Interval = 7
-	// Ninth For specifying the interval of a Ninth.
+	// Ninth For specifying the interval of a Ninth. Limit on a piano for average male hands.
 	Ninth Interval = 9
-	// Eleventh For specifying the interval of an Eleventh.
+	// Eleventh For specifying the interval of an Eleventh. You need large hands to reach this on a piano.
 	Eleventh Interval = 11
-	// Thirteenth For specifying the interval of a Thirteenth.
+	// Thirteenth For specifying the interval of a Thirteenth. On a piano this is 29cm on the white keys, Rachmaninov (6'6") and Liszt could manage it.
 	Thirteenth Interval = 13
 
 	// These are the half-step distances from the First
@@ -52,7 +52,14 @@ const (
 // Chord A collection of specific pitches, making a chord.
 type Chord struct {
 	pitches []Pitch // The pitches that make up this chord
-	root    int     // The index into the pitch slice that contains the root pitch. Will be non-zero for inverted chords.
+}
+
+func MakeChord(pitches ...Pitch) *Chord {
+	return &Chord{pitches}
+}
+
+func (c *Chord) String() string {
+	return fmt.Sprintf("%v", c.pitches)
 }
 
 // ChordFactory The purpose of this class is to allow creating chords using scale intervals, without needing to worry
@@ -104,7 +111,7 @@ func (f *ChordFactory) CreateChord(intervals ...Interval) *Chord {
 	for i, v := range intervals {
 		pitches[i] = *f.GetPitch(v)
 	}
-	return &Chord{pitches, 0}
+	return &Chord{pitches}
 }
 
 // Given a set of two or more pitch classes, how do we determine what the chord is?
@@ -112,22 +119,19 @@ func (f *ChordFactory) CreateChord(intervals ...Interval) *Chord {
 // Only the pattern of half step intervals matters.
 // For each (type of) chord we know, we can iterate through all its inversions, adding them to a trie.
 
-// TODO: It turns out some chords are ambiguous, and the right name to use depends on the lowest pitch so we need to
-// provide an algorithm that uses pitches rather than classes.
-
 func createTriadPattern(third1 HalfSteps, third2 HalfSteps) *Pattern {
 	// Necessary to make a pattern that spans exactly an octave, as the third interval is required for chord inversions
-	return MakePattern(third1, third2, OctaveValue-(third1+third2))
+	return MakePattern(third1, third2)
 }
 
 func createTetrachordPattern(third1 HalfSteps, third2 HalfSteps, third3 HalfSteps) *Pattern {
 	// Necessary to make a pattern that spans exactly an octave, as the third interval is required for chord inversions
-	return MakePattern(third1, third2, third3, OctaveValue-(third1+third2+third3))
+	return MakePattern(third1, third2, third3)
 }
 
 // CreatePowerChordPattern Creates the pattern for a "power chord", consisting of the root and the fifth.
 func CreatePowerChordPattern() *Pattern {
-	return MakePattern(PerfectFifth, PerfectFourth)
+	return MakePattern(PerfectFifth)
 }
 
 // CreateMajorTriadPattern Creates the pattern for a Major Triad. Three of these exist in a key (I, IV, V, iii, vi, vii)
@@ -181,36 +185,79 @@ type chordDictionaryEntry struct {
 	rootIndex int
 }
 
-func addChordToDict(dict *PatternDictionary, chord *Pattern, name string) {
-	for i := 0; i < chord.Length(); i++ {
-		dict.AddPattern(chord.Offset(-i), &chordDictionaryEntry{name, i})
+func addChordWithInversionsToDict(dict *PatternDictionary, chord *Pattern, name string) {
+	// Add the chord in root position
+	dict.AddPattern(chord, &chordDictionaryEntry{name, 0})
+	for i := chord.Length(); i > 0; i-- {
+		// Get the next inversion of the chord
+		chord.Invert()
+		// dict doesn't keep reference to chord, so mutations after the call don't matter
+		dict.AddPattern(chord, &chordDictionaryEntry{name, i})
 	}
+}
+
+func addChordToDict(dict *PatternDictionary, chord *Pattern, name string) {
+	dict.AddPattern(chord, &chordDictionaryEntry{name, 0})
 }
 
 // CreateChordDictionary Creates a new dictionary for the purpose of naming chords based on the half step intervals between pitches.
 func CreateChordDictionary() (dict *PatternDictionary) {
 	dict = &PatternDictionary{NewTrie(1, OctaveValue)}
 
-	addChordToDict(dict, CreatePowerChordPattern(), "5")
+	addChordWithInversionsToDict(dict, CreatePowerChordPattern(), "5")
 
-	addChordToDict(dict, CreateMajorTriadPattern(), " Major")           // 4, 3
-	addChordToDict(dict, CreateMinorTriadPattern(), " Minor")           // 3, 4
-	addChordToDict(dict, CreateDiminishedTriadPattern(), " Diminished") // 3, 3
-	addChordToDict(dict, CreateAugmentedTriadPattern(), " Augmented")   // 4, 4
+	addChordWithInversionsToDict(dict, CreateMajorTriadPattern(), " Major")           // 4, 3
+	addChordWithInversionsToDict(dict, CreateMinorTriadPattern(), " Minor")           // 3, 4
+	addChordWithInversionsToDict(dict, CreateDiminishedTriadPattern(), " Diminished") // 3, 3
+	// Inversion of an augmented chord is an augmented chord with a different root (because 12-(4+4)=4)
+	addChordToDict(dict, CreateAugmentedTriadPattern(), " Augmented") // 4, 4
 
-	addChordToDict(dict, CreateSuspendedPattern(), " Suspended")
+	addChordWithInversionsToDict(dict, CreateSuspendedPattern(), " Suspended")
 
-	addChordToDict(dict, CreateMajorSeventhPattern(), " Major Seventh")
-	addChordToDict(dict, CreateDominantSeventhPattern(), " Dominant Seventh")
-	addChordToDict(dict, CreateMinorSeventhPattern(), " Minor Seventh")
-	addChordToDict(dict, CreateDiminishedSeventhPattern(), " Diminished Seventh")
+	addChordWithInversionsToDict(dict, CreateMajorSeventhPattern(), " Major Seventh")
+	addChordWithInversionsToDict(dict, CreateDominantSeventhPattern(), " Dominant Seventh")
+	addChordWithInversionsToDict(dict, CreateMinorSeventhPattern(), " Minor Seventh")
+	addChordWithInversionsToDict(dict, CreateDiminishedSeventhPattern(), " Diminished Seventh")
 
+	return
+}
+
+// GetName will return the name of this chord, if its intervals are a valid pattern in the given dictionary. This function is
+// specifically preferable for guitars or similar, where extended chords (those with ninths - a stretch on a piano, elevenths, and thirteenths) are used more.
+func (c *Chord) GetName(dict *PatternDictionary, pitchNamer *PitchNamer) (name string, ok bool) {
+	sort.Sort(ByPitch(c.pitches))
+
+	intervals := make([]HalfSteps, len(c.pitches)-1, len(c.pitches)-1)
+
+	for i := 0; i < len(intervals); i++ {
+		intervals[i] = c.pitches[i].GetDistanceTo(&c.pitches[i+1])
+	}
+
+	entries := dict.GetEntries(&Pattern{intervals})
+	for _, entry := range entries {
+		e, ok := entry.(*chordDictionaryEntry)
+		if ok {
+			firstNote := pitchNamer.Name(c.pitches[0].Class())
+			if e.rootIndex == 0 {
+				// Chord is in root position
+				name = fmt.Sprintf("%s%s", firstNote, e.name)
+			} else {
+				// Chord is inverted
+				root := pitchNamer.Name(c.pitches[e.rootIndex].Class())
+				name = fmt.Sprintf("%s%s/%s", root, e.name, firstNote)
+			}
+			return name, true
+		}
+	}
+	ok = false
 	return
 }
 
 // GetChordName Given a set of unique pitch classes, returns the name of the produced chord. If the chord doesn't contain a name in
 // the given dictionary, then ("", false) is returned.
 // As this function takes pitch classes, it cannot determine extended chord names, as the pitches would loop back around (11th -> 4th).
+// It also cannot give the "/<low note>" modifier on an inverted chord, as pitch ordering is lost.
+// This function is useful for when distinct pitches are far apart (left and right hands on piano) but do combine to make a chord.
 func GetChordName(dict *PatternDictionary, pitchNamer *PitchNamer, chord []PitchClass) (name string, ok bool) {
 
 	// Assumption: only unique pitch classes are in chord
@@ -231,16 +278,15 @@ func GetChordName(dict *PatternDictionary, pitchNamer *PitchNamer, chord []Pitch
 
 	pitchIndices.Sort()
 
-	// 2. Create the pattern of the intervals between pitches, including between the last and first
+	// 2. Create the pattern of the intervals between pitches
 
 	pattern := make([]HalfSteps, 0, len(pitchIndices))
 
 	for i, v := range pitchIndices {
-		interval := HalfSteps(pitchIndices[(i+1)%len(pitchIndices)] - v)
-		if interval < 0 { // the last interval will be negative
-			interval += OctaveValue
+		if i+1 < len(pitchIndices) {
+			interval := HalfSteps(pitchIndices[(i+1)] - v)
+			pattern = append(pattern, interval)
 		}
-		pattern = append(pattern, interval)
 	}
 
 	// 3. Look up the pattern in the dictionary

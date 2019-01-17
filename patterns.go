@@ -54,7 +54,7 @@ func (p Pattern) Offset(o int) *Pattern {
 	return &Pattern{offsetPattern}
 }
 
-// Reverse Reverses this pattern so that it produces the reverse of the pattern passed in.
+// Reverse this pattern so that it produces the reverse of the pattern passed in.
 // For example: a major scale pattern in will produce a descending major scale pattern.
 // Super simple example: {3, 2, 1} will produce {-1, -2, -3}.
 func (p *Pattern) Reverse() *Pattern {
@@ -64,6 +64,22 @@ func (p *Pattern) Reverse() *Pattern {
 		reverse[i] = -p.intervals[l-i]
 	}
 	return &Pattern{reverse}
+}
+
+// Invert this pattern to move its first note to be its end, i.e., the first element will be removed
+// and on the end will be added the interval made by subtracting the pattern's sum (prior to removing first)
+// from 12.
+func (p *Pattern) Invert() {
+	var sum HalfSteps
+	inversion := make([]HalfSteps, 0, p.Length())
+	for i, v := range p.intervals {
+		sum += v
+		if i > 0 {
+			inversion = append(inversion, v)
+		}
+	}
+	inversion = append(inversion, OctaveValue-sum)
+	p.intervals = inversion
 }
 
 // ScaleDegree Used for specifying the degree of a scale

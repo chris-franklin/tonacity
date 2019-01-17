@@ -177,6 +177,21 @@ func (p *Pitch) FrequencyInHertz(concertPitch float64) float64 {
 	return math.Pow(2, float64(A4().GetDistanceTo(p))/12.0) * concertPitch
 }
 
+// ByPitch allows sorting a slice of Pitches by their values, i.e., their pitches.
+type ByPitch []Pitch
+
+func (bp ByPitch) Len() int {
+	return len(bp)
+}
+
+func (bp ByPitch) Swap(i, j int) {
+	bp[i], bp[j] = bp[j], bp[i]
+}
+
+func (bp ByPitch) Less(i, j int) bool {
+	return bp[i].value < bp[j].value
+}
+
 // PitchFactory Allows creating pitches relative to C4.
 type PitchFactory struct {
 	c4 Pitch

@@ -67,3 +67,36 @@ func TestGetChordName(t *testing.T) {
 		})
 	}
 }
+
+func TestChord_GetName(t *testing.T) {
+	type args struct {
+		dict       *PatternDictionary
+		pitchNamer *PitchNamer
+	}
+	a := args{CreateChordDictionary(), CreateSharpPitchNamer()}
+	pf := &PitchFactory{*MiddleC()}
+	tests := []struct {
+		name     string
+		c        *Chord
+		args     args
+		wantName string
+		wantOk   bool
+	}{
+		{"C Major", MakeChord(*pf.GetPitch(C(), 4), *pf.GetPitch(E(), 4), *pf.GetPitch(G(), 4)), a, "C Major", true},
+		{"C Major/E", MakeChord(*pf.GetPitch(E(), 4), *pf.GetPitch(G(), 4), *pf.GetPitch(C(), 5)), a, "C Major/E", true},
+		{"C Major/G", MakeChord(*pf.GetPitch(G(), 4), *pf.GetPitch(C(), 5), *pf.GetPitch(E(), 5)), a, "C Major/G", true},
+		{"B Dim", MakeChord(*pf.GetPitch(B(), 3), *pf.GetPitch(D(), 4), *pf.GetPitch(F(), 4)), a, "B Diminished", true},
+		{"B Dim/D", MakeChord(*pf.GetPitch(D(), 4), *pf.GetPitch(F(), 4), *pf.GetPitch(B(), 4)), a, "B Diminished/D", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotName, gotOk := tt.c.GetName(tt.args.dict, tt.args.pitchNamer)
+			if gotName != tt.wantName {
+				t.Errorf("Chord.GetName() gotName = %v, want %v", gotName, tt.wantName)
+			}
+			if gotOk != tt.wantOk {
+				t.Errorf("Chord.GetName() gotOk = %v, want %v", gotOk, tt.wantOk)
+			}
+		})
+	}
+}
